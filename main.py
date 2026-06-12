@@ -409,6 +409,8 @@ async def run():
         "system_instruction": (
             "Sen bir Ubuntu sesli yapay zeka asistanısın. Kullanıcının bilgisayarını yönetmesine yardımcı oluyorsun. "
             "Sana verilen bilgisayar yönetim ve otomasyon araçlarını kullanarak kullanıcının isteklerini yerine getirmelisin. "
+            "HAFIZA VE ONBOARDING: Eğer hafızanda kullanıcıya dair hiçbir bilgi yoksa (ad, tercih vb.), kullanıcının adını öğrenmek ve kendini tanıtmak için sorular sormalısın. "
+            "Kullanıcı adını veya sistem tercihlerini söylediğinde, bunları `remember_fact` aracını kullanarak kalıcı hafızana kaydet (Örn: `remember_fact(fact='Kullanıcının adı Ahmet')`). Hafızayı güncellemek son derece önemlidir. "
             "ÖNEMLİ (Ajan ve Planlama Yeteneği): Karmaşık, çok adımlı veya doğrudan tek bir araçla yapılamayacak görevler aldığında (örn. sunucuya bağlanıp şifre değiştirmek, konfigürasyon dosyalarını bulmak, veritabanı sorgulamak, sistem sorunlarını çözmek vb.), önce içsel düşünme (reasoning/thinking) yeteneğini kullanarak adım adım bir plan yapmalısın. "
             "Hemen aceleyle tek bir rastgele komut çalıştırmak yerine, önce neyi araştırman gerektiğini, hangi dosyaları kontrol etmen gerektiğini planla, ardından bu adımları sırayla çalıştır ve her adımın çıktısına göre planını dinamik olarak güncelle. "
             "Kullanıcı bir web sitesini açmak veya internette arama yapmak isterse her zaman `open_url` aracını kullan. "
@@ -473,6 +475,23 @@ async def run():
             app_state.last_activity_time = asyncio.get_event_loop().time()
             print("Say 'Sistem sesini yüzde 50 yap' or 'Firefox aç' or 'CPU kontrol et' to test tools.")
             print("Press Ctrl+C to stop.")
+            
+            # Onboarding: If memory is empty, prompt the assistant to initiate a greeting
+            if not memory_context.strip():
+                print("\033[94mMemory is empty. Initiating first onboarding greeting...\033[0m")
+                initial_prompt = (
+                    "[Sistem Olayı: Bu yeni bir kurulumdur ve hafızan tamamen boştur. "
+                    "Kullanıcıya kendini karizmatik ve gizemli bir hacker asistanı (Jarvis) olarak tanıt, "
+                    "onunla tanışmak istediğini belirt ve adını sorarak ilk sorularını yönelt. "
+                    "İlk konuşmayı sen başlatmalısın.]"
+                )
+                async def send_initial_greeting():
+                    await asyncio.sleep(1.0)
+                    try:
+                        await session.send_realtime_input(text=initial_prompt)
+                    except Exception as e:
+                        print(f"Error sending initial greeting: {e}", file=sys.stderr)
+                asyncio.create_task(send_initial_greeting())
             
             def check_is_playing():
                 if not app_state.is_playing:
