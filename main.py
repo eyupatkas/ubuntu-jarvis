@@ -290,6 +290,14 @@ TOOLS_DECLARATIONS = [
                     "type": "OBJECT",
                     "properties": {}
                 }
+            },
+            {
+                "name": "shutdown_assistant",
+                "description": "Sesli asistan uygulamasını tamamen kapatır ve sonlandırır (Çıkış yapar).",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
             }
         ]
     }
@@ -740,6 +748,8 @@ async def run():
                                         )
                                     elif name == "get_auto_updates_status":
                                         result = await asyncio.to_thread(tools.get_auto_updates_status)
+                                    elif name == "shutdown_assistant":
+                                        result = await asyncio.to_thread(tools.shutdown_assistant)
                                     else:
                                         result = f"Error: Tool '{name}' not found."
                                     

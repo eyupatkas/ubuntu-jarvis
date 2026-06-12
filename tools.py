@@ -612,6 +612,20 @@ def get_auto_updates_status() -> str:
     except Exception as e:
         return f"Otomatik güncelleme durumu okunurken hata oluştu: {str(e)}"
 
+def shutdown_assistant() -> str:
+    """Sesli asistan uygulamasını tamamen kapatır ve sonlandırır (Çıkış yapar)."""
+    import os
+    import signal
+    import time
+    import threading
+    
+    def trigger_shutdown():
+        time.sleep(0.5)
+        os.kill(os.getpid(), signal.SIGINT)
+        
+    threading.Thread(target=trigger_shutdown, daemon=True).start()
+    return "Asistan başarıyla kapatılıyor. Görüşmek üzere!"
+
 # Expose tools list for the model config
 TOOLS_LIST = [
     execute_command,
@@ -629,5 +643,6 @@ TOOLS_LIST = [
     forget_fact,
     get_memory,
     configure_auto_updates,
-    get_auto_updates_status
+    get_auto_updates_status,
+    shutdown_assistant
 ]
