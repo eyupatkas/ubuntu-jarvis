@@ -17,6 +17,92 @@ def load_env():
 # Load environment on import
 load_env()
 
+def is_command_risky(command: str) -> tuple[bool, str]:
+    """Checks if the command is destructive, system-critical, or risky.
+    Returns (True, reason) if risky, (False, "") otherwise.
+    """
+    import re
+    cmd_clean = command.strip()
+    
+    # 1. Disk operations and secure wiping
+    disk_patterns = [
+        (r'\b(dd|shred|wipe|mkfs|mkfs\..*|fdisk|parted|sfdisk|gparted|tune2fs)\b', "Disk bölümleme, biçimlendirme veya kalıcı veri silme (wiper/shred) işlemi algılandı."),
+        (r'/dev/(sd[a-z]|nvme[0-9]n[0-9]|loop[0-9]|mem|kmem|port)\b', "Ham disk bölümüne veya hassas donanım aygıtlarına doğrudan erişim algılandı.")
+    ]
+    
+    # 2. File deletion
+    deletion_patterns = [
+        (r'\b(rm|rmdir)\b', "Dosya veya dizin silme komutu algılandı.")
+    ]
+    
+    # 3. System power state modifications
+    power_patterns = [
+        (r'\b(shutdown|reboot|poweroff|halt)\b', "Sistemi kapatma veya yeniden başlatma komutu algılandı."),
+        (r'\bsystemctl\s+(reboot|poweroff|halt|suspend|hibernate)\b', "Systemd üzerinden sistemi kapatma veya yeniden başlatma işlemi algılandı."),
+        (r'\binit\s+[06]\b', "Sistem çalışma seviyesini değiştirme (kapatma/yeniden başlatma) komutu algılandı.")
+    ]
+    
+    # 4. Package removal
+    package_patterns = [
+        (r'\b(apt|apt-get|dpkg)\s+.*(remove|purge|autoremove)\b', "Sistem paketlerini kaldırma (remove/purge) işlemi algılandı.")
+    ]
+    
+    # 5. Firewall and core security modifications
+    security_patterns = [
+        (r'\b(ufw\s+disable|iptables\s+-(F|X|Z)|nft\s+flush)\b', "Güvenlik duvarını (firewall) devre dışı bırakma veya kuralları sıfırlama komutu algılandı."),
+        (r'\b(chmod|chown|chgrp)\b.*\b(root|/etc|/boot|/usr|/var|/sys|/proc|/dev)\b', "Kritik sistem dizinlerinin dosya izinlerini değiştirme komutu algılandı."),
+        (r'\b(passwd|shadow|sudoers|visudo)\b', "Kullanıcı hesapları, şifreler veya sudo yetkilendirme dosyaları üzerinde değişiklik algılandı.")
+    ]
+    
+    # Combine patterns
+    all_categories = disk_patterns + deletion_patterns + power_patterns + package_patterns + security_patterns
+    
+    for pattern, reason in all_categories:
+        if re.search(pattern, cmd_clean):
+            return True, reason
+            
+    return False, ""
+
+def ask_user_confirmation(command: str, reason: str) -> bool:
+    """Displays a native GTK confirmation dialog using Zenity.
+    Returns True if user clicks Yes, False otherwise.
+    """
+    import subprocess
+    import shutil
+    
+    if not shutil.which("zenity"):
+        # Fail-safe to False (deny execution) if zenity is not installed
+        return False
+        
+    safe_command = command.replace('\n', ' ').strip()
+    if len(safe_command) > 120:
+        safe_command = safe_command[:117] + "..."
+        
+    text = (
+        f"<b>Jarvis Güvenlik Onayı</b>\n\n"
+        f"Asistan aşağıdaki komutu çalıştırmak istiyor:\n"
+        f"<span foreground='red'><b>{safe_command}</b></span>\n\n"
+        f"<b>Risk Açıklaması:</b> {reason}\n\n"
+        f"Bu işlemi onaylıyor musunuz?"
+    )
+    
+    try:
+        res = subprocess.run(
+            [
+                "zenity", "--question",
+                "--title=Jarvis Güvenlik Sistemi",
+                f"--text={text}",
+                "--no-wrap",
+                "--width=450",
+                "--ok-label=Onayla (Evet)",
+                "--cancel-label=Reddet (Hayır)"
+            ],
+            timeout=60
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
 def execute_command(command: str) -> str:
     """Executes a system shell command on Ubuntu and returns its output.
     Sudo commands are automatically executed using the stored system password.
@@ -26,6 +112,13 @@ def execute_command(command: str) -> str:
     """
     sudo_password = os.getenv("SUDO_PASSWORD", "1998")
     
+    # Check if the command is risky and request user confirmation
+    is_risky, reason = is_command_risky(command)
+    if is_risky:
+        confirmed = ask_user_confirmation(command, reason)
+        if not confirmed:
+            return "Hata: Bu komut riskli olduğu için güvenlik nedeniyle engellendi (Kullanıcı onayı verilmedi)."
+            
     # Prevent recursive execution of the voice assistant
     cmd_clean = command.strip().lower()
     if "main.py" in cmd_clean or "screencast_helper.py" in cmd_clean:
