@@ -292,6 +292,38 @@ TOOLS_DECLARATIONS = [
                 }
             },
             {
+                "name": "write_file",
+                "description": "Creates a new file or overwrites an existing file with the specified content. This tool is highly preferred over shell commands (like echo or cat) to write files.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "filename": {
+                            "type": "STRING",
+                            "description": "The name or path of the file to write (e.g. 'matrix.py')."
+                        },
+                        "content": {
+                            "type": "STRING",
+                            "description": "The exact raw text content to write to the file."
+                        }
+                    },
+                    "required": ["filename", "content"]
+                }
+            },
+            {
+                "name": "read_file",
+                "description": "Reads and returns the content of a file. This tool is highly preferred over shell commands (like cat) to read files.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "filename": {
+                            "type": "STRING",
+                            "description": "The name or path of the file to read (e.g. 'matrix.py')."
+                        }
+                    },
+                    "required": ["filename"]
+                }
+            },
+            {
                 "name": "shutdown_assistant",
                 "description": "Sesli asistan uygulamasını tamamen kapatır ve sonlandırır (Çıkış yapar).",
                 "parameters": {
@@ -411,6 +443,7 @@ async def run():
             "Sana verilen bilgisayar yönetim ve otomasyon araçlarını kullanarak kullanıcının isteklerini yerine getirmelisin. "
             "HAFIZA VE ONBOARDING: Eğer hafızanda kullanıcıya dair hiçbir bilgi yoksa (ad, tercih vb.), kullanıcının adını öğrenmek ve kendini tanıtmak için sorular sormalısın. "
             "Kullanıcı adını veya sistem tercihlerini söylediğinde, bunları `remember_fact` aracını kullanarak kalıcı hafızana kaydet (Örn: `remember_fact(fact='Kullanıcının adı Ahmet')`). Hafızayı güncellemek son derece önemlidir. "
+            "KOD VE DOSYA YÖNETİMİ: Yeni dosyalar oluştururken, kod yazarken veya mevcut dosyaları düzenlerken, terminalden echo, printf veya cat komutlarını kullanmak yerine HER ZAMAN `write_file` ve `read_file` araçlarını kullanmalısın. Bu araçlar dosyalara doğrudan yazmayı sağlar ve özel karakterlerin (dolar işareti, yüzde, kaçış karakterleri vb.) terminal tarafından bozulmasını engeller. "
             "ÖNEMLİ (Ajan ve Planlama Yeteneği): Karmaşık, çok adımlı veya doğrudan tek bir araçla yapılamayacak görevler aldığında (örn. sunucuya bağlanıp şifre değiştirmek, konfigürasyon dosyalarını bulmak, veritabanı sorgulamak, sistem sorunlarını çözmek vb.), önce içsel düşünme (reasoning/thinking) yeteneğini kullanarak adım adım bir plan yapmalısın. "
             "Hemen aceleyle tek bir rastgele komut çalıştırmak yerine, önce neyi araştırman gerektiğini, hangi dosyaları kontrol etmen gerektiğini planla, ardından bu adımları sırayla çalıştır ve her adımın çıktısına göre planını dinamik olarak güncelle. "
             "Kullanıcı bir web sitesini açmak veya internette arama yapmak isterse her zaman `open_url` aracını kullan. "
@@ -767,6 +800,17 @@ async def run():
                                         )
                                     elif name == "get_auto_updates_status":
                                         result = await asyncio.to_thread(tools.get_auto_updates_status)
+                                    elif name == "write_file":
+                                        result = await asyncio.to_thread(
+                                            tools.write_file,
+                                            args.get("filename", ""),
+                                            args.get("content", "")
+                                        )
+                                    elif name == "read_file":
+                                        result = await asyncio.to_thread(
+                                            tools.read_file,
+                                            args.get("filename", "")
+                                        )
                                     elif name == "shutdown_assistant":
                                         result = await asyncio.to_thread(tools.shutdown_assistant)
                                     else:

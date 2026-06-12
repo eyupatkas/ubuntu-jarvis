@@ -623,6 +623,50 @@ def get_auto_updates_status() -> str:
     except Exception as e:
         return f"Otomatik güncelleme durumu okunurken hata oluştu: {str(e)}"
 
+def write_file(filename: str, content: str) -> str:
+    """Creates a new file or overwrites an existing file with the specified content.
+    This tool should always be preferred over shell commands (like echo or cat) to write files.
+    
+    Args:
+        filename: The path or name of the file to write (e.g. 'matrix.py').
+        content: The text content to write to the file.
+    """
+    import os
+    try:
+        if not os.path.isabs(filename):
+            filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+        
+        parent_dir = os.path.dirname(filename)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"File '{filename}' successfully written ({len(content)} bytes)."
+    except Exception as e:
+        return f"Error writing file: {str(e)}"
+
+def read_file(filename: str) -> str:
+    """Reads and returns the content of a file.
+    This tool should always be preferred over shell commands (like cat) to read files.
+    
+    Args:
+        filename: The path or name of the file to read (e.g. 'matrix.py').
+    """
+    import os
+    try:
+        if not os.path.isabs(filename):
+            filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+            
+        if not os.path.exists(filename):
+            return f"Error: File '{filename}' does not exist."
+            
+        with open(filename, "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
+
 def shutdown_assistant() -> str:
     """Sesli asistan uygulamasını tamamen kapatır ve sonlandırır (Çıkış yapar)."""
     import os
@@ -655,5 +699,7 @@ TOOLS_LIST = [
     get_memory,
     configure_auto_updates,
     get_auto_updates_status,
+    write_file,
+    read_file,
     shutdown_assistant
 ]
