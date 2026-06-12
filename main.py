@@ -10,9 +10,203 @@ if sys.prefix == sys.base_prefix and os.path.exists(venv_python):
 import asyncio
 import array
 import math
+import random
+import re
 from google import genai
 from google.genai import types
 import tools
+
+class ConsoleUI:
+    def __init__(self, enabled=True):
+        self.enabled = enabled
+        self.width = 80
+        self.height = 24
+        self.columns_y = []
+        self.columns_speed = []
+        self.columns_len = []
+        self.columns_chars = []
+        self.rms = 0.0
+        self.logs = []
+        self.max_logs = 5
+        self.running = False
+        
+        if not sys.stdout.isatty():
+            self.enabled = False
+            
+        if self.enabled:
+            self.resize()
+
+    def resize(self):
+        try:
+            size = os.get_terminal_size()
+            self.width = size.columns
+            self.height = size.lines
+        except:
+            self.width = 80
+            self.height = 24
+            
+        num_cols = self.width
+        self.columns_y = [random.randint(-20, 0) for _ in range(num_cols)]
+        self.columns_speed = [random.uniform(0.15, 0.7) for _ in range(num_cols)]
+        self.columns_len = [random.randint(5, 18) for _ in range(num_cols)]
+        self.columns_chars = []
+        chars_pool = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%^&*()_+-=[]{}|;':,./<>?"
+        for _ in range(num_cols):
+            col_chars = [random.choice(chars_pool) for _ in range(35)]
+            self.columns_chars.append(col_chars)
+
+    def log(self, text):
+        if not self.enabled:
+            __builtins__.print(text, flush=True)
+            return
+        
+        lines = str(text).splitlines()
+        for line in lines:
+            self.logs.append(line)
+        while len(self.logs) > self.max_logs:
+            self.logs.pop(0)
+
+    def append_to_last_log(self, text):
+        if not self.enabled:
+            __builtins__.print(text, end="", flush=True)
+            return
+        if self.logs:
+            last_line = self.logs[-1]
+            if last_line.endswith("\033[0m"):
+                self.logs[-1] = last_line[:-4] + text + "\033[0m"
+            else:
+                self.logs[-1] = last_line + text
+        else:
+            self.log(text)
+
+    def draw_frame(self):
+        try:
+            size = os.get_terminal_size()
+            if size.columns != self.width or size.lines != self.height:
+                self.resize()
+        except:
+            pass
+            
+        speed_multiplier = 0.25 + (self.rms * 12.0)
+        
+        rain_height = self.height - (self.max_logs + 2)
+        if rain_height < 3:
+            return ""
+            
+        for i in range(self.width):
+            self.columns_y[i] += self.columns_speed[i] * speed_multiplier
+            if self.columns_y[i] > rain_height:
+                self.columns_y[i] = random.randint(-15, 0)
+                self.columns_speed[i] = random.uniform(0.15, 0.7)
+                self.columns_len[i] = random.randint(5, 18)
+
+        grid = [[' ' for _ in range(self.width)] for _ in range(rain_height)]
+        colors = [[32 for _ in range(self.width)] for _ in range(rain_height)]
+        
+        for col_idx in range(self.width):
+            y_pos = int(self.columns_y[col_idx])
+            col_len = self.columns_len[col_idx]
+            
+            for offset in range(col_len):
+                cell_y = y_pos - offset
+                if 0 <= cell_y < rain_height:
+                    char_idx = (cell_y + offset) % len(self.columns_chars[col_idx])
+                    grid[cell_y][col_idx] = self.columns_chars[col_idx][char_idx]
+                    
+                    if offset == 0:
+                        colors[cell_y][col_idx] = 37
+                    elif offset < 3:
+                        colors[cell_y][col_idx] = 92
+                    else:
+                        colors[cell_y][col_idx] = 32
+
+        out = "\033[H"
+        for y in range(rain_height):
+            line = []
+            current_color = 0
+            for x in range(self.width):
+                char = grid[y][x]
+                color = colors[y][x]
+                if char == ' ':
+                    if current_color != 0:
+                        line.append("\033[0m")
+                        current_color = 0
+                    line.append(' ')
+                else:
+                    if current_color != color:
+                        line.append(f"\033[{color}m")
+                        current_color = color
+                    line.append(char)
+            if current_color != 0:
+                line.append("\033[0m")
+            out += "".join(line) + "\n"
+
+        sep_color = "\033[35m"
+        if self.rms > 0.05:
+            sep_color = "\033[91m"
+        elif self.rms > 0.015:
+            sep_color = "\033[93m"
+            
+        out += sep_color + "═" * self.width + "\033[0m\n"
+
+        for i in range(self.max_logs):
+            if i < len(self.logs):
+                log_line = self.logs[i]
+                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                plain_len = len(ansi_escape.sub('', log_line))
+                if plain_len > self.width:
+                    log_line = log_line[:self.width + 10] + "..." + "\033[0m"
+                    plain_len = self.width
+                padding = " " * (self.width - plain_len)
+                out += log_line + padding + "\n"
+            else:
+                out += " " * self.width + "\n"
+                
+        return out
+
+    async def start(self):
+        if not self.enabled:
+            return
+        self.running = True
+        sys.stdout.write("\033[?25l\033[2J")
+        sys.stdout.flush()
+        
+        async def render_loop():
+            while self.running:
+                frame = self.draw_frame()
+                if frame:
+                    sys.stdout.write(frame)
+                    sys.stdout.flush()
+                await asyncio.sleep(0.05)
+                
+        asyncio.create_task(render_loop())
+
+    def stop(self):
+        if not self.enabled:
+            return
+        self.running = False
+        sys.stdout.write("\033[?25h\033[0m\033[2J\033[H")
+        sys.stdout.flush()
+
+ui = ConsoleUI(enabled=os.getenv("MATRIX_RAIN", "true").lower() == "true")
+
+def print(*args, **kwargs):
+    if 'file' in kwargs and kwargs['file'] is not sys.stdout:
+        __builtins__.print(*args, **kwargs)
+        return
+        
+    sep = kwargs.get('sep', ' ')
+    end = kwargs.get('end', '\n')
+    text = sep.join(str(a) for a in args) + end
+    
+    if not ui.enabled:
+        __builtins__.print(text, end="", flush=True)
+        return
+        
+    if end != '\n':
+        ui.append_to_last_log(text)
+    else:
+        ui.log(text.rstrip('\n'))
 
 def calculate_rms(data: bytes) -> float:
     if not data:
@@ -420,6 +614,7 @@ class AudioRecorder:
                 pass
             self.process = None
 async def run():
+    await ui.start()
     model = os.getenv("MODEL_NAME", "gemini-2.0-flash-exp")
     
     # Load memory context from persistent storage
@@ -543,6 +738,7 @@ async def run():
                         data = await mic_queue.get()
                         
                         rms = calculate_rms(data)
+                        ui.rms = rms
                         currently_playing = check_is_playing()
                         
                         now = asyncio.get_event_loop().time()
@@ -895,6 +1091,7 @@ async def run():
         if "loop is closed" not in str(e).lower():
             print(f"\n\033[91mSession error: {e}\033[0m", file=sys.stderr)
     finally:
+        ui.stop()
         if restore_event_sounds:
             try:
                 import subprocess
