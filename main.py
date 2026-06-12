@@ -188,7 +188,7 @@ class ConsoleUI:
         sys.stdout.write("\033[?25h\033[0m\033[2J\033[H")
         sys.stdout.flush()
 
-ui = ConsoleUI(enabled=os.getenv("MATRIX_RAIN", "true").lower() == "true")
+ui = ConsoleUI(enabled=os.getenv("MATRIX_RAIN", "false").lower() == "true")
 
 def print(*args, **kwargs):
     if 'file' in kwargs and kwargs['file'] is not sys.stdout:
@@ -732,6 +732,7 @@ async def run():
 
             # Worker to send audio from mic queue to Gemini session
             async def send_mic_task():
+                voice_interruption = os.getenv("VOICE_INTERRUPTION", "false").lower() == "true"
                 try:
                     send_mic_task.last_debug_time = 0.0
                     while True:
@@ -749,7 +750,7 @@ async def run():
                             print(f"\n[DEBUG RMS] Mic RMS: {rms:.4f} (Threshold: {BARGE_IN_THRESHOLD}, Playing: {currently_playing})", flush=True)
                         
                         if currently_playing:
-                            if rms > BARGE_IN_THRESHOLD:
+                            if voice_interruption and rms > BARGE_IN_THRESHOLD:
                                 print(f"\n\033[91m[Barge-in Detected: RMS {rms:.4f} > {BARGE_IN_THRESHOLD}]\033[0m", flush=True)
                                 # Clear output queue immediately
                                 while not speaker_queue.empty():
