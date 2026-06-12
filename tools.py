@@ -251,10 +251,21 @@ def simulate_keyboard(text: str) -> str:
         text: The text to type (e.g. 'Hello World').
     """
     ensure_ydotoold_running()
+    
+    # Translate text from Turkish layout to US keycodes layout since ydotool expects US layout
+    tr_to_us_map = {
+        'ı': 'i', 'i': "'", 'ş': ';', 'ğ': '[', 'ü': ']', 'ö': ',', 'ç': '.',
+        'I': 'I', 'İ': '"', 'Ş': ':', 'Ğ': '{', 'Ü': '}', 'Ö': '<', 'Ç': '>',
+        '/': '&', '.': '/', ':': '?', ';': '<', '-': '=', '_': '+', '*': '-',
+        '?': '_', '"': '`', "'": '@', '(': '*', ')': '(', '=': ')', '+': '$',
+        '&': '^'
+    }
+    translated_text = "".join(tr_to_us_map.get(c, c) for c in text)
+    
     try:
         import subprocess
         res = subprocess.run(
-            ["ydotool", "type", text],
+            ["ydotool", "type", translated_text],
             capture_output=True,
             text=True,
             timeout=5
